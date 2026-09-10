@@ -468,27 +468,85 @@
       display: block;
     }
 
-    .controls-row {
-      display: grid;
-      grid-template-columns: 1fr 2fr;
-      gap: 10px;
-      margin-top: 4px;
+    @keyframes cardShake {
+      0% { transform: translateX(0); }
+      20% { transform: translateX(-8px); }
+      40% { transform: translateX(8px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+      100% { transform: translateX(0); }
     }
 
-    .btn-secondary {
-      background-color: #f1f5f9;
+    .shake {
+      animation: cardShake 0.35s ease-in-out;
+    }
+
+    .action-buttons-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 6px;
+      width: 100%;
+    }
+
+    .btn-toggle-answer {
+      width: 100%;
+      background-color: #f8fafc;
       color: #334155;
-      border: none;
-      border-radius: 12px;
-      padding: 12px 14px;
-      font-size: 0.92rem;
-      font-weight: 600;
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 13px 16px;
+      font-size: 0.96rem;
+      font-weight: 700;
       cursor: pointer;
       min-height: 48px;
-      transition: background 0.15s ease;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
 
-    .btn-secondary:active {
+    .btn-toggle-answer:hover {
+      background-color: #f1f5f9;
+    }
+
+    .btn-toggle-answer:active {
+      background-color: #e2e8f0;
+      transform: scale(0.99);
+    }
+
+    .nav-buttons-row {
+      display: grid;
+      grid-template-columns: 1fr 1.25fr;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .btn-prev {
+      background-color: #ffffff;
+      color: #1e293b;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 14px;
+      padding: 13px 14px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      min-height: 50px;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .btn-prev:hover {
+      background-color: #f8fafc;
+      border-color: #94a3b8;
+    }
+
+    .btn-prev:active {
       background-color: #e2e8f0;
       transform: scale(0.98);
     }
@@ -497,14 +555,18 @@
       background: linear-gradient(135deg, #10b981 0%, #059669 100%);
       color: white;
       border: none;
-      border-radius: 12px;
-      padding: 12px 18px;
-      font-size: 1rem;
+      border-radius: 14px;
+      padding: 13px 16px;
+      font-size: 1.02rem;
       font-weight: 700;
       cursor: pointer;
-      min-height: 48px;
+      min-height: 50px;
       box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
       transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
     }
 
     .btn-next:active {
@@ -593,6 +655,12 @@
             <select id="section-select"></select>
           </div>
 
+          <!-- Sub-Section Selection (Dynamic) -->
+          <div class="form-group full-width" id="sub-section-group" style="display: none;">
+            <label for="sub-section-select">세부 서브 섹션 선택</label>
+            <select id="sub-section-select"></select>
+          </div>
+
           <!-- Language Selection -->
           <div class="form-group">
             <label>언어 선택</label>
@@ -653,12 +721,17 @@
           <div class="revealed-indicator">✔️ 확인됨</div>
         </div>
 
-        <div class="controls-row">
-          <button type="button" class="btn-secondary" id="btn-toggle-blur">정답 가리기/보기</button>
-          <button type="button" class="btn-next" id="btn-next">다음 구절 ➔</button>
+        <div class="action-buttons-group">
+          <button type="button" class="btn-toggle-answer" id="btn-toggle-blur">
+            👁️ 본문 정답 확인 / 가리기
+          </button>
+          <div class="nav-buttons-row">
+            <button type="button" class="btn-prev" id="btn-prev">⬅️ 이전 구절</button>
+            <button type="button" class="btn-next" id="btn-next">다음 구절 ➔</button>
+          </div>
         </div>
         <div class="mobile-tip">
-          💡 화면을 좌우로 스와이프하거나 키보드(Space/Enter)로 조작할 수 있습니다
+          💡 좌우 스와이프나 키보드(←/→/Space/Enter)로 이전·다음·정답 확인이 가능합니다
         </div>
       </div>
     </div>
@@ -682,7 +755,9 @@
     // Register PWA Service Worker for offline support
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(err => {
+        navigator.serviceWorker.register('./sw.js').then((reg) => {
+          reg.update();
+        }).catch(err => {
           console.log('SW registration error: ', err);
         });
       });
@@ -694,6 +769,7 @@
     let currentIndex = 0;
     let selectedPart = '';
     let selectedSection = '__ALL__';
+    let selectedSubSection = '__ALL__';
     let selectedLang = 'ko';
 
     // DOM Elements
@@ -703,6 +779,8 @@
     const partSelect = document.getElementById('part-select');
     const sectionGroup = document.getElementById('section-group');
     const sectionSelect = document.getElementById('section-select');
+    const subSectionGroup = document.getElementById('sub-section-group');
+    const subSectionSelect = document.getElementById('sub-section-select');
     const labelKo = document.getElementById('label-ko');
     const labelEn = document.getElementById('label-en');
     const countInput = document.getElementById('count-input');
@@ -720,6 +798,7 @@
     const verseText = document.getElementById('verse-text');
     const blurHint = document.getElementById('blur-hint');
     const btnToggleBlur = document.getElementById('btn-toggle-blur');
+    const btnPrev = document.getElementById('btn-prev');
     const btnNext = document.getElementById('btn-next');
 
     const completedBox = document.getElementById('completed-box');
@@ -727,18 +806,27 @@
     const btnBackSettingsDone = document.getElementById('btn-back-settings-done');
     const btnContinueNext = document.getElementById('btn-continue-next');
 
-    // Storage Key Helper (per part + section + lang)
-    function getProgressKey(part, section, lang) {
-      return `verse_progress_${part}_${section}_${lang}`;
+    // Storage Key Helper (per part + section + subSection + lang)
+    function getProgressKey(part, section, subSection, lang) {
+      const subKey = (subSection && subSection !== '__ALL__') ? subSection : '__ALL__';
+      return `verse_progress_${part}_${section}_${subKey}_${lang}`;
     }
 
-    function getLastProgress(part, section, lang) {
-      const val = localStorage.getItem(getProgressKey(part, section, lang));
+    function getLastProgress(part, section, subSection, lang) {
+      const subKey = (subSection && subSection !== '__ALL__') ? subSection : '__ALL__';
+      let val = localStorage.getItem(getProgressKey(part, section, subKey, lang));
+      if (val === null && subKey === '__ALL__') {
+        val = localStorage.getItem(`verse_progress_${part}_${section}_${lang}`);
+      }
       return val ? parseInt(val, 10) : 0;
     }
 
-    function setLastProgress(part, section, lang, order) {
-      localStorage.setItem(getProgressKey(part, section, lang), order);
+    function setLastProgress(part, section, subSection, lang, order) {
+      const subKey = (subSection && subSection !== '__ALL__') ? subSection : '__ALL__';
+      localStorage.setItem(getProgressKey(part, section, subKey, lang), order);
+      if (subKey === '__ALL__') {
+        localStorage.setItem(`verse_progress_${part}_${section}_${lang}`, order);
+      }
     }
 
     // Initialize App & Load JSON
@@ -877,16 +965,69 @@
       }
 
       selectedSection = sectionSelect.value || '__ALL__';
+      updateSubSectionOptions();
+    }
+
+    function updateSubSectionOptions() {
+      const part = partSelect.value;
+      const section = sectionSelect.value;
+      let filtered = allVerses.filter(v => v.part === part && v.lang === selectedLang);
+
+      if (section && section !== '__ALL__') {
+        filtered = filtered.filter(v => v.section === section);
+      }
+
+      // Collect unique sub_sections preserving order
+      const subSections = [];
+      filtered.forEach(v => {
+        if (v.sub_section && !subSections.includes(v.sub_section)) {
+          subSections.push(v.sub_section);
+        }
+      });
+
+      subSectionSelect.innerHTML = '';
+
+      if (subSections.length > 0 && section !== '__ALL__') {
+        subSectionGroup.style.display = 'flex';
+
+        const allOpt = document.createElement('option');
+        allOpt.value = '__ALL__';
+        allOpt.textContent = `[전체] ${section} 전체 (${filtered.length}구절)`;
+        subSectionSelect.appendChild(allOpt);
+
+        subSections.forEach(subSec => {
+          const subVerses = filtered.filter(v => v.sub_section === subSec);
+          const opt = document.createElement('option');
+          opt.value = subSec;
+          opt.textContent = `${subSec} (${subVerses.length}구절)`;
+          subSectionSelect.appendChild(opt);
+        });
+      } else {
+        subSectionGroup.style.display = 'none';
+        const opt = document.createElement('option');
+        opt.value = '__ALL__';
+        opt.textContent = `전체`;
+        subSectionSelect.appendChild(opt);
+      }
+
+      selectedSubSection = subSectionSelect.value || '__ALL__';
       updateProgressDisplay();
     }
 
     function getCurrentScopeVerses() {
       const part = partSelect.value;
       const section = sectionSelect.value;
+      const subSection = subSectionSelect ? subSectionSelect.value : '__ALL__';
       let list = allVerses.filter(v => v.part === part && v.lang === selectedLang);
 
       if (section && section !== '__ALL__') {
         list = list.filter(v => v.section === section);
+      }
+
+      if (subSection && subSection !== '__ALL__') {
+        list = list.filter(v => v.sub_section === subSection);
+        list.sort((a, b) => (a.order_in_sub_section || a.order_in_section || a.order_in_part) - (b.order_in_sub_section || b.order_in_section || b.order_in_part));
+      } else if (section && section !== '__ALL__') {
         list.sort((a, b) => (a.order_in_section || a.order_in_part) - (b.order_in_section || b.order_in_part));
       } else {
         list.sort((a, b) => a.order_in_part - b.order_in_part);
@@ -897,9 +1038,10 @@
     function updateProgressDisplay() {
       const part = partSelect.value;
       const section = sectionSelect.value;
+      const subSection = subSectionSelect ? subSectionSelect.value : '__ALL__';
       const list = getCurrentScopeVerses();
       const total = list.length;
-      const lastOrder = getLastProgress(part, section, selectedLang);
+      const lastOrder = getLastProgress(part, section, subSection, selectedLang);
 
       if (total === 0) {
         lastProgressText.textContent = `구절 데이터 없음`;
@@ -924,6 +1066,10 @@
     partSelect.addEventListener('change', onPartChange);
     sectionSelect.addEventListener('change', () => {
       selectedSection = sectionSelect.value;
+      updateSubSectionOptions();
+    });
+    subSectionSelect.addEventListener('change', () => {
+      selectedSubSection = subSectionSelect.value;
       updateProgressDisplay();
     });
 
@@ -933,11 +1079,18 @@
     btnReset.addEventListener('click', () => {
       const part = partSelect.value;
       const section = sectionSelect.value;
-      const secName = section === '__ALL__' ? '전체' : section;
+      const subSection = subSectionSelect ? subSectionSelect.value : '__ALL__';
+
+      let scopeName = part;
+      if (section && section !== '__ALL__') scopeName += ` > ${section}`;
+      if (subSection && subSection !== '__ALL__') scopeName += ` > ${subSection}`;
       const langName = selectedLang === 'ko' ? '한글' : '영문';
 
-      if (confirm(`'${part} > ${secName}' (${langName}) 진도를 1번으로 초기화하시겠습니까?`)) {
-        localStorage.removeItem(getProgressKey(part, section, selectedLang));
+      if (confirm(`'${scopeName}' (${langName}) 진도를 1번으로 초기화하시겠습니까?`)) {
+        localStorage.removeItem(getProgressKey(part, section, subSection, selectedLang));
+        if (subSection === '__ALL__') {
+          localStorage.removeItem(`verse_progress_${part}_${section}_${selectedLang}`);
+        }
         updateProgressDisplay();
       }
     });
@@ -948,6 +1101,7 @@
     function startPractice() {
       const part = partSelect.value;
       const section = sectionSelect.value;
+      const subSection = subSectionSelect ? subSectionSelect.value : '__ALL__';
       const count = parseInt(countInput.value, 10) || 5;
       const scopeVerses = getCurrentScopeVerses();
 
@@ -957,13 +1111,16 @@
       }
 
       const totalCount = scopeVerses.length;
-      const lastOrder = getLastProgress(part, section, selectedLang);
+      const lastOrder = getLastProgress(part, section, subSection, selectedLang);
 
       let startIndex = 0;
       if (lastOrder > 0) {
-        const isSectionScope = section && section !== '__ALL__';
+        const isSubScope = subSection && subSection !== '__ALL__';
+        const isSecScope = section && section !== '__ALL__';
         const foundIdx = scopeVerses.findIndex(v => {
-          const ord = isSectionScope ? (v.order_in_section || v.order_in_part) : v.order_in_part;
+          const ord = isSubScope ? (v.order_in_sub_section || v.order_in_section || v.order_in_part)
+                    : isSecScope ? (v.order_in_section || v.order_in_part)
+                    : v.order_in_part;
           return ord === lastOrder;
         });
         startIndex = foundIdx !== -1 ? (foundIdx + 1) % totalCount : 0;
@@ -979,6 +1136,7 @@
       currentIndex = 0;
       selectedPart = part;
       selectedSection = section;
+      selectedSubSection = subSection;
 
       settingsCard.style.display = 'none';
       completedBox.style.display = 'none';
@@ -990,13 +1148,19 @@
     // Render Current Verse
     function renderCurrentVerse() {
       const current = currentQueue[currentIndex];
-      const isSectionScope = selectedSection && selectedSection !== '__ALL__';
-      const currentOrder = isSectionScope ? (current.order_in_section || current.order_in_part) : current.order_in_part;
+      const isSubScope = selectedSubSection && selectedSubSection !== '__ALL__';
+      const isSecScope = selectedSection && selectedSection !== '__ALL__';
+      const currentOrder = isSubScope ? (current.order_in_sub_section || current.order_in_section || current.order_in_part)
+                         : isSecScope ? (current.order_in_section || current.order_in_part)
+                         : current.order_in_part;
       const scopeTotal = getCurrentScopeVerses().length;
 
       let badgeText = current.part;
       if (current.section && current.section !== current.part) {
         badgeText += ` · ${current.section}`;
+      }
+      if (current.sub_section && isSubScope) {
+        badgeText += ` · ${current.sub_section}`;
       }
       badgeText += ` (${current.lang === 'ko' ? '한글' : '영문'})`;
       practiceSectionBadge.textContent = badgeText;
@@ -1009,6 +1173,7 @@
 
       hideVerseText();
 
+      // Update Next button label
       if (currentIndex === currentQueue.length - 1) {
         btnNext.textContent = '점검 완료 ✔️';
       } else {
@@ -1027,24 +1192,60 @@
     function revealVerseText() {
       verseText.classList.add('revealed');
       verseBox.classList.add('is-revealed');
+      btnToggleBlur.textContent = '🙈 정답 가리기';
     }
 
     function hideVerseText() {
       verseText.classList.remove('revealed');
       verseBox.classList.remove('is-revealed');
+      btnToggleBlur.textContent = '👁️ 본문 정답 확인 / 가리기';
     }
 
     verseBox.addEventListener('click', toggleVerseText);
-    btnToggleBlur.addEventListener('click', toggleVerseText);
+    btnToggleBlur.addEventListener('click', (e) => {
+      e.currentTarget.blur();
+      toggleVerseText();
+    });
 
-    btnNext.addEventListener('click', handleNextVerse);
+    btnPrev.addEventListener('click', (e) => {
+      e.currentTarget.blur();
+      handlePrevVerse();
+    });
+    btnNext.addEventListener('click', (e) => {
+      e.currentTarget.blur();
+      handleNextVerse();
+    });
+
+    function handlePrevVerse() {
+      const scopeVerses = getCurrentScopeVerses();
+      const totalCount = scopeVerses.length;
+      if (totalCount === 0 || currentQueue.length === 0) return;
+
+      if (currentIndex > 0) {
+        currentIndex--;
+        renderCurrentVerse();
+      } else {
+        // 큐의 첫 번째 구절인 경우: 현재 범위(scope)에서 직전 순번 구절을 큐의 맨 앞에 추가하여 이전 구절로 이동!
+        const firstVerse = currentQueue[0];
+        const firstIdx = scopeVerses.findIndex(v => v.id === firstVerse.id);
+        const prevIdx = (firstIdx - 1 + totalCount) % totalCount;
+        const prevVerse = scopeVerses[prevIdx];
+
+        currentQueue.unshift(prevVerse);
+        currentIndex = 0;
+        renderCurrentVerse();
+      }
+    }
 
     function handleNextVerse() {
       const current = currentQueue[currentIndex];
-      const isSectionScope = selectedSection && selectedSection !== '__ALL__';
-      const currentOrder = isSectionScope ? (current.order_in_section || current.order_in_part) : current.order_in_part;
+      const isSubScope = selectedSubSection && selectedSubSection !== '__ALL__';
+      const isSecScope = selectedSection && selectedSection !== '__ALL__';
+      const currentOrder = isSubScope ? (current.order_in_sub_section || current.order_in_section || current.order_in_part)
+                         : isSecScope ? (current.order_in_section || current.order_in_part)
+                         : current.order_in_part;
 
-      setLastProgress(selectedPart, selectedSection, selectedLang, currentOrder);
+      setLastProgress(selectedPart, selectedSection, selectedSubSection, selectedLang, currentOrder);
 
       if (currentIndex < currentQueue.length - 1) {
         currentIndex++;
@@ -1056,7 +1257,10 @@
 
     function showCompletedView(lastSavedOrder) {
       practiceSection.style.display = 'none';
-      const secName = selectedSection === '__ALL__' ? `${selectedPart} 전체` : selectedSection;
+      let secName = selectedSection === '__ALL__' ? `${selectedPart} 전체` : selectedSection;
+      if (selectedSubSection && selectedSubSection !== '__ALL__') {
+        secName += ` > ${selectedSubSection}`;
+      }
       const langName = selectedLang === 'ko' ? '한글' : '영문';
 
       completedSummary.innerHTML = `
@@ -1102,21 +1306,38 @@
         // Swipe Left -> Next Verse
         handleNextVerse();
       } else if (diff > 50) {
-        // Swipe Right -> Toggle blur / view answer
-        toggleVerseText();
+        // Swipe Right -> Prev Verse (if index > 0, otherwise toggle)
+        if (currentIndex > 0) {
+          handlePrevVerse();
+        } else {
+          toggleVerseText();
+        }
       }
     }
 
     // Keyboard Shortcuts
     window.addEventListener('keydown', (e) => {
-      if (practiceSection.style.display === 'flex') {
-        if (e.code === 'Space') {
-          e.preventDefault();
-          toggleVerseText();
-        } else if (e.code === 'Enter' || e.code === 'ArrowRight') {
-          e.preventDefault();
-          handleNextVerse();
-        }
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+        return;
+      }
+
+      const isPracticeActive = practiceSection && practiceSection.style.display !== 'none';
+      if (!isPracticeActive) return;
+
+      const isLeft = e.key === 'ArrowLeft' || e.key === 'Left' || e.code === 'ArrowLeft' || e.keyCode === 37;
+      const isRight = e.key === 'ArrowRight' || e.key === 'Right' || e.code === 'ArrowRight' || e.keyCode === 39;
+      const isEnter = e.key === 'Enter' || e.code === 'Enter' || e.keyCode === 13;
+      const isSpace = e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space' || e.keyCode === 32;
+
+      if (isLeft) {
+        e.preventDefault();
+        handlePrevVerse();
+      } else if (isRight || isEnter) {
+        e.preventDefault();
+        handleNextVerse();
+      } else if (isSpace) {
+        e.preventDefault();
+        toggleVerseText();
       }
     });
 
